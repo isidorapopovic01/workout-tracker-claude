@@ -159,6 +159,11 @@ input[type=number]{-moz-appearance:textfield}
 .tr.skip{color:#6E6B80}
 .tr.skip .v{color:#6E6B80;font-weight:500}
 
+.entry-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding-top:12px;border-top:1px solid #1E1E27}
+.confirm{display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid #1E1E27}
+.btn-danger{background:#B91C1C;color:#fff}
+.btn-danger:hover{background:#991B1B}
+.edit-box{padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px;border-top:1px solid #26262F}
 .done-mark{width:64px;height:64px;border-radius:32px;background:var(--accent);display:flex;align-items:center;justify-content:center}
 .sumbox{background:var(--field);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:4px;align-items:center}
 .sumbox b{font-size:20px;font-family:"Space Grotesk",sans-serif}
@@ -216,21 +221,19 @@ input[type=number]{-moz-appearance:textfield}
 
   /* ---------- data ---------- */
   var BASE_TYPES = [
-    { name: 'Push', color: '#A78BFA' }, { name: 'Pull', color: '#2DD4BF' }, { name: 'Legs', color: '#FB923C' },
-    { name: 'Upper', color: '#F472B6' }, { name: 'Lower', color: '#FACC15' }, { name: 'Full Body', color: '#A3E635' },
-    { name: 'Cardio', color: '#60A5FA' }
+    { name: 'Full Body', color: '#A3E635' }, { name: 'Upper', color: '#F472B6' }, { name: 'Lower', color: '#FB923C' },
+    { name: 'Push', color: '#A78BFA' }, { name: 'Pull', color: '#2DD4BF' }, { name: 'Cardio', color: '#60A5FA' }
   ];
   var CUSTOM_COLORS = ['#38BDF8', '#E879F9', '#FDE68A', '#86EFAC', '#FCA5A5', '#93C5FD'];
   var LIB = {
     Push: [['Bench Press', 4, 8, 60], ['Incline DB Press', 3, 10, 22], ['Overhead Press', 3, 8, 40], ['Cable Fly', 3, 12, 15], ['Lateral Raise', 3, 15, 8], ['Triceps Pushdown', 3, 12, 25]],
     Pull: [['Deadlift', 3, 5, 100], ['Pull-up', 4, 8, 0], ['Barbell Row', 4, 8, 55], ['Face Pull', 3, 15, 15], ['Hammer Curl', 3, 12, 14]],
-    Legs: [['Back Squat', 4, 6, 80], ['Romanian Deadlift', 3, 10, 60], ['Leg Press', 3, 12, 140], ['Walking Lunge', 3, 12, 16], ['Calf Raise', 4, 15, 40]],
+    Lower: [['Back Squat', 4, 6, 80], ['Romanian Deadlift', 3, 10, 60], ['Leg Press', 3, 12, 140], ['Walking Lunge', 3, 12, 16], ['Calf Raise', 4, 15, 40]],
     Cardio: [['Zone 2 Run', 1, 40, 0]]
   };
   var QUICK = {
     Push: ['Bench Press', 'Overhead Press', 'Dips', 'Lateral Raise', 'Triceps Pushdown'],
     Pull: ['Deadlift', 'Pull-up', 'Barbell Row', 'Lat Pulldown', 'Biceps Curl'],
-    Legs: ['Back Squat', 'Romanian Deadlift', 'Leg Press', 'Leg Curl', 'Calf Raise'],
     Upper: ['Bench Press', 'Barbell Row', 'Overhead Press', 'Pull-up', 'Biceps Curl'],
     Lower: ['Back Squat', 'Romanian Deadlift', 'Hip Thrust', 'Leg Extension', 'Calf Raise'],
     'Full Body': ['Back Squat', 'Bench Press', 'Deadlift', 'Pull-up', 'Plank'],
@@ -249,8 +252,8 @@ input[type=number]{-moz-appearance:textfield}
     S = { v: 1, nextId: 1, types: BASE_TYPES.slice(), plans: [], logs: [], metrics: [], session: null };
     var t = today();
     function mkEx(type) { return LIB[type].map(function (e) { return { id: uid(), name: e[0], sets: e[1], reps: e[2], kg: e[3] }; }); }
-    [[-8, 'Pull Day', 'Pull'], [-6, 'Push Day', 'Push'], [-4, 'Leg Day', 'Legs'], [-2, 'Pull Day', 'Pull'], [0, 'Push Day', 'Push'],
-     [2, 'Pull Day', 'Pull'], [4, 'Leg Day', 'Legs'], [6, 'Push Day', 'Push'], [8, 'Zone 2 Run', 'Cardio']].forEach(function (p) {
+    [[-8, 'Pull Day', 'Pull'], [-6, 'Push Day', 'Push'], [-4, 'Leg Day', 'Lower'], [-2, 'Pull Day', 'Pull'], [0, 'Push Day', 'Push'],
+     [2, 'Pull Day', 'Pull'], [4, 'Leg Day', 'Lower'], [6, 'Push Day', 'Push'], [8, 'Zone 2 Run', 'Cardio']].forEach(function (p) {
       S.plans.push({ id: uid(), date: addDays(t, p[0]), name: p[1], type: p[2], ex: mkEx(p[2]) });
     });
     [[-8, 47], [-6, 55], [-4, 61], [-2, 48]].forEach(function (l) {
@@ -266,9 +269,17 @@ input[type=number]{-moz-appearance:textfield}
   function load() {
     try {
       var raw = localStorage.getItem(STORE_KEY);
-      if (raw) { S = JSON.parse(raw); if (S && S.plans) return; }
+      if (raw) { S = JSON.parse(raw); if (S && S.plans) { migrate(); return; } }
     } catch (e) { /* storage unavailable */ }
     seed(); save();
+  }
+  function migrate() {
+    // keep the base types in the agreed order, then any custom types; old "Legs" becomes "Lower"
+    var baseNames = BASE_TYPES.map(function (t) { return t.name; });
+    var custom = (S.types || []).filter(function (t) { return baseNames.indexOf(t.name) === -1 && t.name !== 'Legs'; });
+    S.types = BASE_TYPES.concat(custom);
+    S.plans.concat(S.logs).forEach(function (x) { if (x.type === 'Legs') x.type = 'Lower'; });
+    if (S.session && S.session.type === 'Legs') S.session.type = 'Lower';
   }
   function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
 
@@ -284,7 +295,8 @@ input[type=number]{-moz-appearance:textfield}
     view: 'home', selected: today(), year: now.getFullYear(), month: now.getMonth(),
     pickId: null, pickMode: null, editingId: null, builderId: null, customOpen: false, customName: '',
     draft: { name: '', sets: 3, reps: 10, kg: 20 }, logFilter: 'All', logOpen: {}, lastLogId: null, summary: null,
-    progFilter: 'all', progForm: false, progDraft: null, progOpen: {}, lastMetricId: null
+    progFilter: 'all', progForm: false, progDraft: null, progOpen: {}, lastMetricId: null,
+    logEdit: null, logConfirm: null, progEdit: null, progConfirm: null
   };
 
   /* ---------- shared pieces ---------- */
@@ -487,7 +499,35 @@ input[type=number]{-moz-appearance:textfield}
       '</main><div class="footer"><button class="btn btn-primary btn-lg" data-action="builder-back">' + I.check(18, 2.5) + 'Save workout</button></div>';
   }
 
+  function entryActions(kind, id, confirming, what) {
+    if (confirming) {
+      return '<div class="confirm" role="alert"><span class="base">Delete this ' + what + '? This can’t be undone.</span><div class="grid2" style="gap:8px">' +
+        '<button class="btn btn-ghost btn-sm" data-action="' + kind + '-cancel-delete">Keep it</button>' +
+        '<button class="btn btn-danger btn-sm" data-action="' + kind + '-delete" data-id="' + id + '">Delete ' + what + '</button></div></div>';
+    }
+    return '<div class="entry-actions"><button class="act" data-action="' + kind + '-edit" data-id="' + id + '">' + I.edit() + 'Edit</button>' +
+      '<button class="act danger" data-action="' + kind + '-ask-delete" data-id="' + id + '">' + I.trash() + 'Delete</button></div>';
+  }
+  function editButtons(kind) {
+    return '<div class="row g8"><button class="btn btn-ghost btn-sm" style="flex:1" data-action="' + kind + '-edit-cancel">Cancel</button>' +
+      '<button class="btn btn-primary btn-sm" style="flex:2" data-action="' + kind + '-edit-save">Save changes</button></div>';
+  }
+
   /* ---------- Logs ---------- */
+  function logEditForm() {
+    var d = UI.logEdit.draft;
+    var rows = d.ex.map(function (e, i) {
+      function f(field, label, mode, step) { return '<label class="inline-field">' + label + '<input type="number" inputmode="' + mode + '" min="0"' + (step ? ' step="' + step + '"' : '') + ' value="' + esc(e[field]) + '" data-input="log-edit-ex" data-i="' + i + '" data-field="' + field + '"></label>'; }
+      return '<div class="stack g8" style="padding-top:10px;border-top:1px solid #1E1E27"><label class="row g8 base strong" style="min-height:32px"><input type="checkbox"' + (e.done ? ' checked' : '') + ' data-input="log-edit-done" data-i="' + i + '" style="width:18px;height:18px;accent-color:#7C3AED">' + esc(e.name) + '</label>' +
+        '<div class="grid3">' + f('sets', 'SETS', 'numeric') + f('reps', 'REPS', 'numeric') + f('kg', 'KG', 'decimal', '0.5') + '</div></div>';
+    }).join('');
+    return '<div class="edit-box"><div style="display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:8px">' +
+      '<label class="field">Name<input class="input" type="text" value="' + esc(d.name) + '" data-input="log-edit" data-field="name"></label>' +
+      '<label class="field">Minutes<input class="input num" style="font-size:15px" type="number" inputmode="numeric" min="0" value="' + esc(d.duration) + '" data-input="log-edit" data-field="duration"></label></div>' +
+      '<label class="field">Date<input class="input" type="date" value="' + esc(d.date) + '" data-input="log-edit" data-field="date"></label>' +
+      rows + editButtons('log') + '</div>';
+  }
+
   function viewLogs() {
     var sorted = S.logs.slice().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id; });
     var typesUsed = [];
@@ -497,28 +537,36 @@ input[type=number]{-moz-appearance:textfield}
     var filters = ['All'].concat(typesUsed).map(function (f) { return '<button class="pill" data-action="log-filter" data-f="' + esc(f) + '" aria-pressed="' + (f === UI.logFilter) + '">' + esc(f) + '</button>'; }).join('');
     var entries = shown.map(function (l, idx) {
       var open = UI.logOpen[l.id] !== undefined ? UI.logOpen[l.id] : (idx === 0 && UI.logOpen.__init !== true);
+      var editing = UI.logEdit && UI.logEdit.id === l.id;
       var d = fromKey(l.date);
       var rows = l.ex.map(function (e) {
         return '<div class="tr' + (e.done ? '' : ' skip') + '"><span class="ellipsis">' + esc(e.name) + '</span><span class="r">' + (e.done ? e.sets + '×' + e.reps : '—') + '</span><span class="r v">' + (e.done ? (num(e.kg) === 0 ? 'Bodyweight' : e.kg + ' kg') : 'Skipped') + '</span></div>';
       }).join('');
-      return '<div class="entry' + (l.id === UI.lastLogId ? ' new' : '') + '"><button class="entry-head" data-action="log-toggle" data-id="' + l.id + '" aria-expanded="' + open + '">' +
+      return '<div class="entry' + (l.id === UI.lastLogId || editing ? ' new' : '') + '"><button class="entry-head" data-action="log-toggle" data-id="' + l.id + '" aria-expanded="' + open + '">' +
         '<span class="datebox"><span class="dw">' + WD[d.getDay()].toUpperCase() + '</span><span class="dn">' + d.getDate() + '</span></span>' +
         '<span class="stack g4 grow"><span class="row g8"><span class="h3">' + esc(l.name) + '</span>' + (l.id === UI.lastLogId ? '<span class="badge">NEW</span>' : '') + '</span>' +
         '<span class="xs muted">' + l.duration + ' min · ' + logDone(l) + ' exercises · ' + fmtInt(logVolume(l)) + ' kg</span></span>' +
         '<span class="chev muted' + (open ? ' open' : '') + '">' + I.down() + '</span></button>' +
-        (open ? '<div class="tbl"><div class="tr th"><span>EXERCISE</span><span class="r">SETS×REPS</span><span class="r">WEIGHT</span></div>' + rows + '</div>' : '') + '</div>';
+        (editing ? logEditForm() : open ? '<div class="tbl"><div class="tr th"><span>EXERCISE</span><span class="r">SETS×REPS</span><span class="r">WEIGHT</span></div>' + rows + entryActions('log', l.id, UI.logConfirm === l.id, 'workout') + '</div>' : '') + '</div>';
     }).join('');
     if (!shown.length) entries = '<div class="empty"><span class="base muted">No workouts logged yet. Complete a workout to see it here.</span><a class="btn btn-soft btn-sm" href="#home">Go to today’s workout</a></div>';
 
     return '<main class="screen"><h1 class="h1">Logs</h1>' +
       '<div class="grid2"><div class="card stat stack g4" style="border-radius:18px;padding:14px"><span class="xs muted">Workouts</span><span class="num">' + shown.length + '</span></div>' +
-      '<a class="card accent stack between g4" style="border-radius:18px;padding:14px" href="#progress"><span class="row between"><span class="xs" style="color:var(--accent-soft)">Progress metrics</span><span style="color:var(--accent-soft)">' + I.next(18) + '</span></span>' +
-      '<span class="row g8 strong" style="font-size:15px">' + I.trend() + 'Weight &amp; dimensions</span></a></div>' +
+      '<a class="card accent row between g8" style="border-radius:18px;padding:14px" href="#progress"><span class="row g8 strong" style="font-size:15px"><span style="color:var(--accent-soft)">' + I.trend() + '</span>Progress Metrics</span><span style="color:var(--accent-soft)">' + I.next(18) + '</span></a></div>' +
       '<div class="row wrap g8" role="group" aria-label="Filter by type">' + filters + '</div>' +
       '<div class="stack g12">' + entries + '</div></main>' + nav('logs');
   }
 
   /* ---------- Progress ---------- */
+  function progEditForm() {
+    var d = UI.progEdit.draft;
+    return '<div class="edit-box"><label class="field">Date<input class="input" type="date" value="' + esc(d.date) + '" data-input="prog-edit" data-field="date"></label>' +
+      '<div class="grid2" style="gap:8px">' + METRICS.map(function (m) {
+        return '<label class="field">' + m.name + ' (' + m.unit + ')<input class="input num" style="font-size:16px" type="number" inputmode="decimal" min="0" step="0.1" value="' + esc(d[m.key]) + '" data-input="prog-edit" data-field="' + m.key + '"></label>';
+      }).join('') + '</div>' + editButtons('prog') + '</div>';
+  }
+
   function viewProgress() {
     var sorted = S.metrics.slice().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id; });
     var cutoff = addDays(today(), -30);
@@ -546,14 +594,15 @@ input[type=number]{-moz-appearance:textfield}
     var entries = shown.map(function (e, idx) {
       var prev = sorted[sorted.indexOf(e) + 1];
       var open = UI.progOpen[e.id] !== undefined ? UI.progOpen[e.id] : idx === 0;
+      var editing = UI.progEdit && UI.progEdit.id === e.id;
       var d = fromKey(e.date);
       var rows = METRICS.map(function (m) { return '<div class="tr"><span>' + m.name + '</span><span class="r strong">' + r1(e[m.key]) + ' ' + m.unit + '</span><span class="r" style="color:var(--accent-soft)">' + (prev ? delta(e[m.key], prev[m.key]) : '—') + '</span></div>'; }).join('');
-      return '<div class="entry' + (e.id === UI.lastMetricId ? ' new' : '') + '"><button class="entry-head" data-action="prog-toggle" data-id="' + e.id + '" aria-expanded="' + open + '">' +
+      return '<div class="entry' + (e.id === UI.lastMetricId || editing ? ' new' : '') + '"><button class="entry-head" data-action="prog-toggle" data-id="' + e.id + '" aria-expanded="' + open + '">' +
         '<span class="datebox"><span class="dw">' + MONTHS[d.getMonth()].slice(0, 3).toUpperCase() + '</span><span class="dn">' + d.getDate() + '</span></span>' +
         '<span class="stack g4 grow"><span class="row g8"><span class="h3">' + r1(e.weight) + ' kg</span><span class="xs strong" style="color:var(--accent-soft)">' + (prev ? delta(e.weight, prev.weight) + ' kg' : 'First entry') + '</span>' + (e.id === UI.lastMetricId ? '<span class="badge">NEW</span>' : '') + '</span>' +
         '<span class="xs muted">Waist ' + r1(e.waist) + ' · Chest ' + r1(e.chest) + ' · Hips ' + r1(e.hips) + ' cm</span></span>' +
         '<span class="chev muted' + (open ? ' open' : '') + '">' + I.down() + '</span></button>' +
-        (open ? '<div class="tbl"><div class="tr th"><span>MEASUREMENT</span><span class="r">VALUE</span><span class="r">CHANGE</span></div>' + rows + '</div>' : '') + '</div>';
+        (editing ? progEditForm() : open ? '<div class="tbl"><div class="tr th"><span>MEASUREMENT</span><span class="r">VALUE</span><span class="r">CHANGE</span></div>' + rows + entryActions('prog', e.id, UI.progConfirm === e.id, 'measurement') + '</div>' : '') + '</div>';
     }).join('');
     if (!shown.length) entries = '<div class="empty"><span class="base muted">No measurements in this range. Add one to start tracking.</span></div>';
 
@@ -572,7 +621,8 @@ input[type=number]{-moz-appearance:textfield}
     if (!VIEWS[v]) v = 'home';
     if (v !== 'today') UI.summary = null;
     if (v !== 'plan') { UI.builderId = null; UI.editingId = null; UI.pickId = null; UI.customOpen = false; }
-    if (v !== 'progress') { UI.progForm = false; UI.progDraft = null; }
+    if (v !== 'progress') { UI.progForm = false; UI.progDraft = null; UI.progEdit = null; UI.progConfirm = null; }
+    if (v !== 'logs') { UI.logEdit = null; UI.logConfirm = null; }
     UI.view = v;
     render();
     window.scrollTo(0, 0);
@@ -660,11 +710,45 @@ input[type=number]{-moz-appearance:textfield}
     },
     'ex-remove': function (ds) { var b = findPlan(UI.builderId); if (!b) return; b.ex = b.ex.filter(function (e) { return e.id !== +ds.id; }); save(); render(); },
     'log-filter': function (ds) { UI.logFilter = ds.f; render(); },
-    'log-toggle': function (ds, el) { UI.logOpen.__init = true; UI.logOpen[ds.id] = el.getAttribute('aria-expanded') !== 'true'; render(); },
+    'log-toggle': function (ds, el) { UI.logOpen.__init = true; UI.logOpen[ds.id] = el.getAttribute('aria-expanded') !== 'true'; if (UI.logEdit && UI.logEdit.id === +ds.id) UI.logEdit = null; UI.logConfirm = null; render(); },
+    'log-edit': function (ds) {
+      var l = S.logs.find(function (x) { return x.id === +ds.id; }); if (!l) return;
+      UI.logOpen.__init = true; UI.logOpen[l.id] = true; UI.logConfirm = null;
+      UI.logEdit = { id: l.id, draft: { name: l.name, duration: l.duration, date: l.date, ex: l.ex.map(function (e) { return { name: e.name, sets: e.sets, reps: e.reps, kg: e.kg, done: e.done }; }) } };
+      render();
+    },
+    'log-edit-cancel': function () { UI.logEdit = null; render(); },
+    'log-edit-save': function () {
+      var l = S.logs.find(function (x) { return x.id === UI.logEdit.id; }), d = UI.logEdit.draft;
+      if (l) {
+        l.name = String(d.name).trim() || l.name; l.duration = num(d.duration); l.date = d.date || l.date;
+        l.ex = d.ex.map(function (e) { return { name: e.name, sets: num(e.sets), reps: num(e.reps), kg: num(e.kg), done: !!e.done }; });
+        save();
+      }
+      UI.logEdit = null; render(); toast('Workout updated');
+    },
+    'log-ask-delete': function (ds) { UI.logConfirm = +ds.id; render(); },
+    'log-cancel-delete': function () { UI.logConfirm = null; render(); },
+    'log-delete': function (ds) { S.logs = S.logs.filter(function (x) { return x.id !== +ds.id; }); UI.logConfirm = null; save(); render(); toast('Workout deleted'); },
     'prog-open': function () { UI.progForm = true; render(); },
     'prog-close': function () { UI.progForm = false; UI.progDraft = null; render(); },
     'prog-filter': function (ds) { UI.progFilter = ds.f; render(); },
-    'prog-toggle': function (ds, el) { UI.progOpen[ds.id] = el.getAttribute('aria-expanded') !== 'true'; render(); },
+    'prog-toggle': function (ds, el) { UI.progOpen[ds.id] = el.getAttribute('aria-expanded') !== 'true'; if (UI.progEdit && UI.progEdit.id === +ds.id) UI.progEdit = null; UI.progConfirm = null; render(); },
+    'prog-edit': function (ds) {
+      var m = S.metrics.find(function (x) { return x.id === +ds.id; }); if (!m) return;
+      UI.progOpen[m.id] = true; UI.progConfirm = null;
+      var draft = { date: m.date }; METRICS.forEach(function (k) { draft[k.key] = m[k.key]; });
+      UI.progEdit = { id: m.id, draft: draft }; render();
+    },
+    'prog-edit-cancel': function () { UI.progEdit = null; render(); },
+    'prog-edit-save': function () {
+      var m = S.metrics.find(function (x) { return x.id === UI.progEdit.id; }), d = UI.progEdit.draft;
+      if (m) { m.date = d.date || m.date; METRICS.forEach(function (k) { m[k.key] = num(d[k.key]); }); save(); }
+      UI.progEdit = null; render(); toast('Measurement updated');
+    },
+    'prog-ask-delete': function (ds) { UI.progConfirm = +ds.id; render(); },
+    'prog-cancel-delete': function () { UI.progConfirm = null; render(); },
+    'prog-delete': function (ds) { S.metrics = S.metrics.filter(function (x) { return x.id !== +ds.id; }); UI.progConfirm = null; save(); render(); toast('Measurement deleted'); },
     'prog-save': function () {
       var d = UI.progDraft, entry = { id: uid(), date: d.date || today() };
       METRICS.forEach(function (m) { entry[m.key] = num(d[m.key]); });
@@ -689,6 +773,10 @@ input[type=number]{-moz-appearance:textfield}
     else if (kind === 'draft') { UI.draft[f] = v; }
     else if (kind === 'bex') { var b = findPlan(UI.builderId); if (b) { var x = b.ex.find(function (q) { return q.id === +el.dataset.id; }); if (x) { x[f] = v; save(); } } }
     else if (kind === 'prog' && UI.progDraft) { UI.progDraft[f] = v; }
+    else if (kind === 'log-edit' && UI.logEdit) { UI.logEdit.draft[f] = v; }
+    else if (kind === 'log-edit-ex' && UI.logEdit) { UI.logEdit.draft.ex[+el.dataset.i][f] = v; }
+    else if (kind === 'log-edit-done' && UI.logEdit) { UI.logEdit.draft.ex[+el.dataset.i].done = el.checked; }
+    else if (kind === 'prog-edit' && UI.progEdit) { UI.progEdit.draft[f] = v; }
   });
 
   document.addEventListener('keydown', function (ev) {
